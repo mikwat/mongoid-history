@@ -5,25 +5,35 @@ describe Mongoid::History::Tracker do
     class Element
       include Mongoid::Document
       include Mongoid::Timestamps
-      include Mongoid::History::Trackable
 
       field :body
-
-      track_history on: [:body], track_create: true, track_update: true, track_destroy: true
     end
 
     class Prompt < Element
+      include Mongoid::Document
+      include Mongoid::Timestamps
+      include Mongoid::History::Trackable
+
+      field :dirty, type: Boolean, default: false
+
+      track_history(
+        on: [:fields],
+        modifier_field: :updater,
+        track_create: true,
+        track_update: true,
+        track_destroy: true
+      )
     end
   end
 
   it 'tracks subclass create and update' do
     prompt = Prompt.new
     expect { prompt.save! }.to change(Tracker, :count).by(1)
-    expect { prompt.update_attributes!(body: 'one') }.to change(Tracker, :count).by(1)
+    expect { prompt.update_attributes!(dirty: true) }.to change(Tracker, :count).by(1)
     prompt.undo!
-    expect(prompt.body).to be_blank
+    expect(prompt.dirty).to be_blank
     prompt.redo! nil, 2
-    expect(prompt.body).to eq('one')
+    expect(prompt.dirty).to be(true)
     expect { prompt.destroy }.to change(Tracker, :count).by(1)
   end
 end
